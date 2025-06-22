@@ -818,14 +818,480 @@ const isFirstLogin = useSelector((state) => state?.auth?.isFirstLogin);
 
 ---
 
+## 🪟 **Alternative Approach: Modal/Popup Implementation**
+
+Since understanding different approaches is crucial for a junior developer, let's explore how we could implement the same functionality using a modal/popup approach.
+
+### **Modal Implementation Architecture:**
+```
+Login Component
+├── Login Form
+├── Success Handler
+└── ResetPasswordModal (Conditional)
+    ├── Modal Dialog
+    ├── Password Form (Duplicate Logic)
+    ├── Validation
+    └── Submit Handler
+```
+
+### **Step 1: Create the Reset Password Modal Component**
+
+```javascript
+// src/components/ResetPasswordModal.js
+import React from "react";
+import * as Yup from "yup";
+import { Formik } from "formik";
+import { useTranslation } from "react-i18next";
+import CustomButton from "components/CustomButton";
+import CustomTextField from "components/CustomTextField";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Grid,
+  Typography,
+  Box,
+  Divider,
+  IconButton,
+  Alert,
+} from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
+import { UsersService } from "services/UsersService";
+import { useNotificationAndBackdrop } from "hooks/useNotificationAndBackdrop";
+
+const initialValues = {
+  new_password: "",
+  confirm_new_password: "",
+};
+
+const ResetPasswordModal = ({ 
+  open, 
+  userData, 
+  onSuccess, 
+  onCancel,
+  disableClose = true // For first login, prevent closing
+}) => {
+  const { t } = useTranslation();
+  const { displayNotification } = useNotificationAndBackdrop();
+
+  const Validation = Yup.object().shape({
+    new_password: Yup.string()
+      .min(8, "Must be 8 characters or more")
+      .matches(/\d+/, "At least one number")
+      .required(t("Required")),
+    confirm_new_password: Yup.string()
+      .oneOf([Yup.ref("new_password"), null], "Passwords do not match")
+      .required(t("Required")),
+  });
+
+  const handleSubmit = async (
+    values,
+    { setErrors, setStatus, setSubmitting }
+  ) => {
+    const body = {
+      ...values,
+      id_user_to_change_password: userData?.id_user,
+    };
+
+    try {
+      const result = await UsersService.resetPassword(body);
+      if (result) {
+        displayNotification({
+          content: t("Password changed successfully! Welcome to the system."),
+          severity: "success",
+        });
+        onSuccess(); // Call parent success handler
+      }
+
+      setStatus({ success: true });
+      setSubmitting(false);
+    } catch (e) {
+      setStatus({ success: false });
+      setErrors({ submit: e.message });
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={disableClose ? undefined : onCancel}
+      fullWidth
+      maxWidth="sm"
+      disableEscapeKeyDown={disableClose}
+      // Prevent closing by clicking outside for first login
+      PaperProps={{
+        onClick: (e) => e.stopPropagation(),
+      }}
+      BackdropProps={{
+        onClick: disableClose ? (e) => e.preventDefault() : onCancel,
+      }}
+    >
+      <DialogTitle>
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Typography variant="h6">
+            {t("Password Reset Required")}
+          </Typography>
+          {!disableClose && (
+            <IconButton onClick={onCancel} size="small">
+              <CloseIcon />
+            </IconButton>
+          )}
+        </Box>
+      </DialogTitle>
+
+      <DialogContent>
+        {/* First Login Alert */}
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            {t("This is your first login. Please set a new password to continue.")}
+          </Typography>
+        </Alert>
+
+        {/* User Info */}
+        <Box sx={{ mb: 2, textAlign: "center" }}>
+          <Typography variant="h6" color="textPrimary" sx={{ fontWeight: 500 }}>
+            {`${userData?.first_name} ${userData?.last_name}`}
+          </Typography>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+            {t("Create your new password")}
+          </Typography>
+        </Box>
+
+        <Divider sx={{ mb: 2 }} />
+
+        {/* Password Form */}
+        <Formik
+          onSubmit={handleSubmit}
+          validationSchema={Validation}
+          initialValues={{ ...initialValues }}
+        >
+          {({
+            values,
+            errors,
+            touched,
+            handleBlur,
+            handleChange,
+            handleSubmit,
+            isSubmitting,
+          }) => (
+            <form noValidate onSubmit={handleSubmit}>
+              <Grid container spacing={2}>
+                {/* New Password */}
+                <Grid item xs={12}>
+                  <CustomTextField
+                    fullWidth
+                    required
+                    type="password"
+                    id="new_password"
+                    onBlur={handleBlur}
+                    title="New Password"
+                    onChange={handleChange}
+                    error={errors?.new_password}
+                    value={values?.new_password}
+                    touched={touched?.new_password}
+                  />
+                </Grid>
+
+                {/* Confirm New Password */}
+                <Grid item xs={12}>
+                  <CustomTextField
+                    fullWidth
+                    required
+                    type="password"
+                    id="confirm_new_password"
+                    onBlur={handleBlur}
+                    onChange={handleChange}
+                    title="Confirm Password"
+                    error={errors?.confirm_new_password}
+                    value={values?.confirm_new_password}
+                    touched={touched?.confirm_new_password}
+                  />
+                </Grid>
+
+                {/* Submission error */}
+                {errors.submit && (
+                  <Grid item xs={12}>
+                    <Typography
+                      variant="body2"
+                      color="error"
+                      align="center"
+                      sx={{ mt: 1 }}
+                    >
+                      {errors.submit}
+                    </Typography>
+                  </Grid>
+                )}
+              </Grid>
+
+              <DialogActions sx={{ justifyContent: "center", mt: 3, gap: 2 }}>
+                {!disableClose && (
+                  <CustomButton
+                    variant="outlined"
+                    title="Cancel"
+                    onClick={onCancel}
+                  />
+                )}
+                <CustomButton
+                  type="submit"
+                  title="Update Password"
+                  isDisabled={isSubmitting}
+                />
+              </DialogActions>
+            </form>
+          )}
+        </Formik>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default ResetPasswordModal;
+```
+
+### **Step 2: Enhanced Login Component with Modal**
+
+```javascript
+// src/pages/login/Login.js (Modal approach)
+import React, { useMemo, useState, useCallback } from "react";
+import { Box } from "@mui/material";
+import LoginPanel from "./components/LoginPanel";
+import LocalizationIcon from "components/LocalizationIcon";
+import { useDispatch } from "react-redux";
+import { updateUserData } from "redux/slices/authSlice";
+import { useNotificationAndBackdrop } from "hooks/useNotificationAndBackdrop";
+import { useTranslation } from "react-i18next";
+import ThemeColors from "../../config/colors";
+import { useNavigate } from "react-router-dom";
+import { GlobalService } from "services/GlobalService";
+import ResetPasswordModal from "components/ResetPasswordModal";
+
+const Login = React.memo(() => {
+  const [error, setError] = useState(null);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [loginUserData, setLoginUserData] = useState(null);
+  const dispatch = useDispatch();
+  const { t } = useTranslation();
+  const { displayNotification } = useNotificationAndBackdrop();
+  const navigate = useNavigate();
+
+  // ... existing backgroundStyles ...
+
+  // Handle login, dispatch user data, and check for first login
+  const handleLogin = useCallback(
+    async (username, password) => {
+      setError(null);
+      try {
+        const result = await GlobalService.login(username, password);
+        
+        // Store user data for potential modal usage
+        setLoginUserData(result.user);
+        
+        // Always dispatch user data for authentication
+        dispatch(
+          updateUserData({
+            isLoggedIn: true,
+            token: result?.tokens.access,
+            tokenExpiry: result?.tokens.access_expires_in,
+            refreshToken: result?.tokens.refresh,
+            refreshTokenExpiry: result?.tokens.refresh_expires_in,
+            user: result.user,
+          })
+        );
+
+        displayNotification({
+          content: t("Welcome Back"),
+          severity: "success",
+        });
+
+        // 🔍 Check if this is the first login
+        if (result.user.first_login === true) {
+          // Show modal for password reset
+          setShowResetPasswordModal(true);
+        } else {
+          // Regular navigation for returning users
+          navigate("/home");
+        }
+      } catch (err) {
+        setError(err.message || t("Login failed"));
+      }
+    },
+    [dispatch, displayNotification, navigate, t]
+  );
+
+  // Handle successful password reset from modal
+  const handlePasswordResetSuccess = useCallback(() => {
+    setShowResetPasswordModal(false);
+    // Navigate to home after successful password reset
+    navigate("/home");
+  }, [navigate]);
+
+  // Handle modal cancellation (for first login, this could log them out)
+  const handlePasswordResetCancel = useCallback(() => {
+    setShowResetPasswordModal(false);
+    // For first login, you might want to log them out
+    // dispatch(logOut());
+    // navigate("/");
+    
+    // Or just keep them on login screen
+    setError(t("Password reset is required for first login"));
+  }, [t]);
+
+  return (
+    <Box
+      display='flex'
+      justifyContent='end'
+      alignItems='end'
+      sx={{ height: "100vh" }}
+    >
+      {/* Background */}
+      <Box sx={backgroundStyles} />
+
+      {/* Login Panel */}
+      <Box
+        sx={{
+          flex: { xs: "1 0", sm: "0 0 45%", md: "0 0 35%" },
+          backgroundColor: {
+            xs: ThemeColors.overlayGrayColor,
+            md: "transparent",
+          },
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",
+          alignItems: "flex-end",
+        }}
+      >
+        <LocalizationIcon />
+        <LoginPanel onSubmit={handleLogin} error={error} setError={setError} />
+      </Box>
+
+      {/* Reset Password Modal */}
+      <ResetPasswordModal
+        open={showResetPasswordModal}
+        userData={loginUserData}
+        onSuccess={handlePasswordResetSuccess}
+        onCancel={handlePasswordResetCancel}
+        disableClose={true} // Prevent closing for first login
+      />
+    </Box>
+  );
+});
+
+export default Login;
+```
+
+### **Modal vs Page Navigation: Detailed Comparison**
+
+| Aspect | Modal Approach | Page Navigation Approach |
+|--------|----------------|--------------------------|
+| **Screen Space** | Limited to dialog size | Full screen available |
+| **Mobile Experience** | Can be cramped on small screens | Better mobile UX |
+| **Code Duplication** | ❌ Duplicates password form logic | ✅ Reuses existing component |
+| **Implementation Complexity** | Moderate (new modal component) | Higher (layout modifications) |
+| **User Focus** | ✅ Forces immediate attention | Can be navigated away from |
+| **Escape Prevention** | Easy with dialog props | Requires layout modifications |
+| **Accessibility** | Good with proper ARIA labels | Better with full page context |
+| **Testing** | Easier to unit test | Requires integration testing |
+| **Maintenance** | ❌ Two password reset components | ✅ Single password reset component |
+
+### **When to Choose Modal Approach:**
+
+#### **✅ Good For:**
+- **Simple Forms**: Short, focused interactions
+- **Immediate Actions**: When you need instant user attention
+- **Confirmations**: Yes/No decisions
+- **Quick Data Entry**: Small forms with 2-3 fields
+
+#### **❌ Not Ideal For:**
+- **Complex Forms**: Multi-step or lengthy forms
+- **Mobile-First Apps**: Limited screen real estate
+- **Accessibility-Critical Apps**: Screen readers prefer page navigation
+- **Forms with File Uploads**: Need more space for drag-drop
+
+### **Modal Implementation Challenges & Solutions:**
+
+#### **Challenge 1: Preventing Modal Close on First Login**
+```javascript
+// ✅ Solution: Conditional close behavior
+<Dialog
+  open={open}
+  onClose={disableClose ? undefined : onCancel}
+  disableEscapeKeyDown={disableClose}
+  BackdropProps={{
+    onClick: disableClose ? (e) => e.preventDefault() : onCancel,
+  }}
+>
+```
+
+#### **Challenge 2: Code Duplication**
+```javascript
+// ❌ Problem: Duplicate validation and form logic
+// Modal has its own form logic
+// Page component has its own form logic
+
+// ✅ Solution: Extract shared form component
+const PasswordResetForm = ({ onSubmit, userData }) => {
+  // Shared form logic here
+};
+
+// Use in both modal and page
+<PasswordResetForm onSubmit={handleSubmit} userData={userData} />
+```
+
+#### **Challenge 3: State Management**
+```javascript
+// ✅ Modal state management pattern
+const [modalState, setModalState] = useState({
+  isOpen: false,
+  userData: null,
+  isLoading: false,
+  error: null
+});
+
+// Update state atomically
+setModalState(prev => ({
+  ...prev,
+  isOpen: true,
+  userData: result.user
+}));
+```
+
+---
+
 ## 🔧 **Design Decisions Explained**
 
-### **Why Page Navigation Over Modal?**
+### **Modal vs Page Navigation Trade-offs:**
 
-| Approach | Pros | Cons | Our Choice |
-|----------|------|------|------------|
-| **Modal** | - Immediate action<br/>- Can't navigate away | - Limited space<br/>- Code duplication | ❌ Not chosen |
-| **Page Navigation** | - Full screen space<br/>- Reuses existing component<br/>- Better mobile UX | - Slightly more complex | ✅ **Chosen** |
+| Approach | Pros | Cons | Best Use Case |
+|----------|------|------|---------------|
+| **Modal** | ✅ Immediate action<br/>✅ Can't navigate away<br/>✅ Maintains context | ❌ Limited space<br/>❌ Code duplication<br/>❌ Poor mobile UX | Simple, urgent actions |
+| **Page Navigation** | ✅ Full screen space<br/>✅ Reuses existing component<br/>✅ Better mobile UX<br/>✅ Better accessibility | ❌ More complex navigation control<br/>❌ Requires layout modifications | Complex forms, mobile-first apps |
+
+### **Real-World Decision Framework:**
+
+```javascript
+// Decision helper function
+const shouldUseModal = (formData) => {
+  const factors = {
+    fieldCount: formData.fields.length,
+    hasFileUpload: formData.hasFileUpload,
+    isMobileFirst: window.innerWidth < 768,
+    isUrgentAction: formData.isUrgent,
+    hasComplexValidation: formData.validationRules.length > 3
+  };
+
+  // Simple scoring system
+  let modalScore = 0;
+  if (factors.fieldCount <= 3) modalScore += 2;
+  if (!factors.hasFileUpload) modalScore += 1;
+  if (!factors.isMobileFirst) modalScore += 1;
+  if (factors.isUrgentAction) modalScore += 2;
+  if (!factors.hasComplexValidation) modalScore += 1;
+
+  return modalScore >= 5; // Use modal if score is high
+};
+```
 
 ### **Why Redux Over Local State?**
 
