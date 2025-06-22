@@ -1309,6 +1309,569 @@ const shouldUseModal = (formData) => {
 
 ---
 
+## 🛡️ **Handling Browser Navigation Edge Cases: A Senior-Level Security Analysis**
+
+### **🚨 The Problem Junior Developers Often Miss**
+
+Redux state persistence is great, but what happens when users try to bypass our secure flow through browser navigation? Let's explore every possible scenario and build bulletproof protection.
+
+### **Edge Case Scenarios:**
+
+```
+User Journey Edge Cases:
+1. 🔄 Browser Refresh → State lost, security bypassed?
+2. ⬅️ Back Button → Return to login after password reset?
+3. 🔗 Direct URL → Type /home directly during first login?
+4. 📝 URL Manipulation → Change ?first-login=true to =false?
+5. 🔖 Bookmarking → Bookmark URLs during first login flow?
+6. 🗂️ Multiple Tabs → Open multiple tabs during first login?
+7. 💾 Cache Clear → Clear browser cache mid-flow?
+```
+
+---
+
+## 🛠️ **Solution 1: Comprehensive Route Protection**
+
+### **Enhanced AuthGuard with First Login Detection:**
+
+```javascript
+// src/guards/AuthGuard.js (Enhanced)
+import React, { useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useNotificationAndBackdrop } from 'hooks/useNotificationAndBackdrop';
+
+const AuthGuard = ({ children }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { displayNotification } = useNotificationAndBackdrop();
+  
+  const { isLoggedIn, user, isFirstLogin } = useSelector((state) => ({
+    isLoggedIn: state?.auth?.isLoggedIn,
+    user: state?.auth?.user,
+    isFirstLogin: state?.auth?.isFirstLogin,
+  }));
+
+  useEffect(() => {
+    // 🔐 Core Security Logic
+    if (!isLoggedIn) {
+      // Not authenticated at all - redirect to login
+      navigate('/', { replace: true });
+      return;
+    }
+
+    // 🚨 Critical: Check for first login bypass attempts
+    if (isFirstLogin && !location.pathname.includes('/reset-password')) {
+      // User is trying to access other pages during first login
+      displayNotification({
+        content: "Please complete your password reset before continuing",
+        severity: "warning",
+      });
+      
+      // Force redirect back to password reset
+      navigate('/reset-password?first-login=true', { replace: true });
+      return;
+    }
+
+    // 🔍 Additional validation: Check backend state
+    if (user?.first_login === true && !location.pathname.includes('/reset-password')) {
+      // Backend still shows first login, but Redux might be wrong
+      displayNotification({
+        content: "Password reset required for first-time users",
+        severity: "warning",
+      });
+      
+      navigate('/reset-password?first-login=true', { replace: true });
+      return;
+    }
+  }, [isLoggedIn, isFirstLogin, location.pathname, navigate, user, displayNotification]);
+
+  // Don't render children if checks fail
+  if (!isLoggedIn) {
+    return null; // Will redirect to login
+  }
+
+  if (isFirstLogin && !location.pathname.includes('/reset-password')) {
+    return null; // Will redirect to password reset
+  }
+
+  return children;
+};
+
+export default AuthGuard;
+```
+
+### **Why This Works:**
+- ✅ **Replace Navigation**: Uses `replace: true` to prevent back button issues
+- ✅ **Double Validation**: Checks both Redux and user object
+- ✅ **User Feedback**: Clear notifications about why redirect happened
+- ✅ **Null Rendering**: Prevents flash of content before redirect
+
+---
+
+## 🔄 **Solution 2: URL Parameter Validation**
+
+### **Smart Parameter Checking:**
+
+```javascript
+// src/pages/reset-password/ResetPassword.js (Enhanced Security)
+const ResetPassword = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { isFirstLogin, user } = useSelector((state) => ({
+    isFirstLogin: state?.auth?.isFirstLogin,
+    user: state?.auth?.user,
+  }));
+
+  // 🔍 Multi-layer validation
+  const validateFirstLoginFlow = useCallback(() => {
+    const hasFirstLoginParam = location.search.includes("first-login=true");
+    const reduxSaysFirstLogin = isFirstLogin === true;
+    const backendSaysFirstLogin = user?.first_login === true;
+
+    // 🚨 Security validation matrix
+    const validationMatrix = {
+      urlParam: hasFirstLoginParam,
+      reduxState: reduxSaysFirstLogin,
+      backendState: backendSaysFirstLogin,
+    };
+
+    console.log("First Login Validation:", validationMatrix);
+
+    // ✅ Valid first login scenarios
+    if (hasFirstLoginParam && (reduxSaysFirstLogin || backendSaysFirstLogin)) {
+      return true; // Legitimate first login
+    }
+
+    // ❌ Invalid scenarios - potential bypass attempts
+    if (hasFirstLoginParam && !reduxSaysFirstLogin && !backendSaysFirstLogin) {
+      // URL manipulation detected
+      displayNotification({
+        content: "Invalid URL parameters detected",
+        severity: "error",
+      });
+      navigate('/home', { replace: true });
+      return false;
+    }
+
+    if (!hasFirstLoginParam && (reduxSaysFirstLogin || backendSaysFirstLogin)) {
+      // Missing URL parameter but state says first login
+      navigate('/reset-password?first-login=true', { replace: true });
+      return false;
+    }
+
+    return true; // Regular password reset
+  }, [location.search, isFirstLogin, user, navigate, displayNotification]);
+
+  useEffect(() => {
+    if (!validateFirstLoginFlow()) {
+      return; // Validation failed, redirect happened
+    }
+  }, [validateFirstLoginFlow]);
+
+  // ... rest of component
+};
+```
+
+---
+
+## 🎨 **Solution 3: Browser History Management**
+
+### **Preventing Back Button Issues:**
+
+```javascript
+// src/pages/login/Login.js (Enhanced Navigation)
+const Login = React.memo(() => {
+  const navigate = useNavigate();
+  
+  const handleLogin = useCallback(
+    async (username, password) => {
+      try {
+        const result = await GlobalService.login(username, password);
+        const isFirstLogin = result.user.first_login === true;
+        
+        // ... dispatch user data ...
+        
+        if (isFirstLogin) {
+          // 🔄 Replace current history entry to prevent back button
+          navigate("/reset-password?first-login=true", { 
+            replace: true, // ← Key: This prevents back button issues
+            state: { fromLogin: true } // ← Additional context
+          });
+        } else {
+          navigate("/home", { replace: true });
+        }
+      } catch (err) {
+        // ... error handling ...
+      }
+    },
+    [dispatch, displayNotification, navigate, t]
+  );
+
+  // 🚫 Prevent back navigation during login process
+  useEffect(() => {
+    const handlePopState = (event) => {
+      // User pressed back button during login
+      event.preventDefault();
+      
+      // Optionally show warning
+      if (window.confirm("Are you sure you want to leave the login page?")) {
+        window.history.back();
+      } else {
+        // Stay on current page
+        window.history.pushState(null, "", window.location.href);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    
+    // Push current state to prevent immediate back
+    window.history.pushState(null, "", window.location.href);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  // ... rest of component
+});
+```
+
+---
+
+## 🔄 **Solution 4: Redux Persistence with Validation**
+
+### **Enhanced Redux Store Configuration:**
+
+```javascript
+// src/redux/store/index.js (Enhanced)
+import { configureStore } from '@reduxjs/toolkit';
+import { persistStore, persistReducer } from 'redux-persist';
+import storage from 'redux-persist/lib/storage';
+import authSlice from '../slices/authSlice';
+
+// 🔧 Custom state validation
+const authPersistConfig = {
+  key: 'auth',
+  storage,
+  // 🔍 Validate state on rehydration
+  stateReconciler: (inboundState, originalState) => {
+    // Check if persisted state is valid
+    if (inboundState && typeof inboundState === 'object') {
+      const now = Date.now();
+      const tokenExpiry = inboundState.tokenExpiry;
+      
+      // ⏰ Check if token is expired
+      if (tokenExpiry && now > tokenExpiry) {
+        console.log("Token expired, clearing auth state");
+        return {
+          ...originalState,
+          isLoggedIn: false,
+          token: null,
+          user: null,
+          isFirstLogin: false
+        };
+      }
+      
+      // 🔍 Validate first login state consistency
+      if (inboundState.isFirstLogin && inboundState.user?.first_login === false) {
+        console.log("Inconsistent first login state detected");
+        return {
+          ...inboundState,
+          isFirstLogin: false // Trust backend state
+        };
+      }
+      
+      return inboundState;
+    }
+    
+    return originalState;
+  }
+};
+
+const persistedAuthReducer = persistReducer(authPersistConfig, authSlice);
+
+export const store = configureStore({
+  reducer: {
+    auth: persistedAuthReducer,
+    // ... other reducers
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: {
+        ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'],
+      },
+    }),
+});
+
+export const persistor = persistStore(store);
+```
+
+---
+
+## 🎯 **Solution 5: Session Validation Hook**
+
+### **Real-time Session Monitoring:**
+
+```javascript
+// src/hooks/useSessionValidation.js
+import { useEffect, useCallback } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { logOut, updateUserData } from 'redux/slices/authSlice';
+import { GlobalService } from 'services/GlobalService';
+
+const useSessionValidation = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  const { isLoggedIn, token, isFirstLogin, user } = useSelector((state) => ({
+    isLoggedIn: state?.auth?.isLoggedIn,
+    token: state?.auth?.token,
+    isFirstLogin: state?.auth?.isFirstLogin,
+    user: state?.auth?.user,
+  }));
+
+  const validateSession = useCallback(async () => {
+    if (!isLoggedIn || !token) return;
+
+    try {
+      // 🔍 Verify session with backend
+      const sessionData = await GlobalService.validateSession();
+      
+      // 🔄 Update first login status from backend
+      if (sessionData.user.first_login !== user?.first_login) {
+        console.log("First login status updated from backend");
+        dispatch(updateUserData({
+          ...sessionData,
+          isFirstLogin: sessionData.user.first_login
+        }));
+        
+        // Redirect if needed
+        if (sessionData.user.first_login && !location.pathname.includes('/reset-password')) {
+          navigate('/reset-password?first-login=true', { replace: true });
+        }
+      }
+      
+    } catch (error) {
+      console.log("Session validation failed:", error);
+      // Invalid session - logout
+      dispatch(logOut());
+      navigate('/', { replace: true });
+    }
+  }, [isLoggedIn, token, user, dispatch, navigate, location.pathname]);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      // Validate session on page load
+      validateSession();
+      
+      // Set up periodic validation
+      const interval = setInterval(validateSession, 5 * 60 * 1000); // Every 5 minutes
+      
+      return () => clearInterval(interval);
+    }
+  }, [isLoggedIn, validateSession]);
+
+  return { validateSession };
+};
+
+export default useSessionValidation;
+```
+
+---
+
+## 📊 **Visual Flow Diagram**
+
+Let me create a comprehensive flow diagram showing all edge cases:
+
+```mermaid
+graph TD
+    A[User Logs In] --> B{First Login?}
+    
+    B -->|Yes| C[Set isFirstLogin: true]
+    B -->|No| D[Navigate to /home]
+    
+    C --> E[Navigate to /reset-password?first-login=true]
+    
+    E --> F{User Action}
+    
+    F -->|Completes Password Reset| G[Clear isFirstLogin flag]
+    F -->|Presses Back Button| H[AuthGuard Intercept]
+    F -->|Types Different URL| I[AuthGuard Intercept]
+    F -->|Refreshes Page| J[Redux Persist Restore]
+    F -->|Manipulates URL Params| K[Parameter Validation]
+    
+    H --> L[Force Redirect Back]
+    I --> L
+    K --> M{Valid Parameters?}
+    
+    M -->|No| N[Show Error & Redirect]
+    M -->|Yes| O[Allow Access]
+    
+    J --> P{State Valid?}
+    P -->|Yes| Q[Continue Flow]
+    P -->|No| R[Clear State & Logout]
+    
+    G --> S[Navigate to /home]
+    L --> E
+    N --> E
+    R --> T[Return to Login]
+    
+    style C fill:#ffeb3b
+    style H fill:#f44336
+    style I fill:#f44336
+    style K fill:#ff9800
+    style P fill:#2196f3
+```
+
+---
+
+## 🧠 **Teaching Moment: Why Each Solution Matters**
+
+### **1. Route Guards (AuthGuard Enhancement)**
+**Junior Developer Thinking:** "Redux handles state, that's enough"
+**Senior Developer Reality:** "Users can bypass client-side state through navigation"
+
+**Key Learning:**
+```javascript
+// ❌ Junior approach - trust client state only
+if (isLoggedIn) {
+  return <DashboardPage />;
+}
+
+// ✅ Senior approach - validate every access
+if (isLoggedIn && !firstLoginBypass()) {
+  return <DashboardPage />;
+}
+```
+
+### **2. History Management**
+**Junior Developer Thinking:** "Back button is browser behavior, can't control it"
+**Senior Developer Reality:** "We can intercept and guide user behavior for security"
+
+**Key Learning:**
+```javascript
+// ✅ Replace navigation prevents back button issues
+navigate("/secure-page", { replace: true });
+
+// ❌ Push navigation allows back button bypass
+navigate("/secure-page");
+```
+
+### **3. Parameter Validation**
+**Junior Developer Thinking:** "URL parameters are just UI helpers"
+**Senior Developer Reality:** "URL parameters can be manipulated and need validation"
+
+**Key Learning:**
+```javascript
+// ❌ Trust URL parameters blindly
+const isFirstLogin = location.search.includes("first-login=true");
+
+// ✅ Validate against multiple sources
+const isValidFirstLogin = urlParam && (reduxState || backendState);
+```
+
+### **4. Session Monitoring**
+**Junior Developer Thinking:** "Login once, trust forever"
+**Senior Developer Reality:** "Continuously validate session integrity"
+
+**Key Learning:**
+```javascript
+// ✅ Periodic validation prevents stale state issues
+useEffect(() => {
+  const interval = setInterval(validateSession, 5 * 60 * 1000);
+  return () => clearInterval(interval);
+}, []);
+```
+
+---
+
+## 🚨 **Common Attack Vectors & Defenses**
+
+### **Attack Vector 1: URL Manipulation**
+```
+User changes: /reset-password?first-login=true
+To:          /reset-password?first-login=false
+```
+**Defense:** Parameter validation against backend state
+
+### **Attack Vector 2: Direct Navigation**
+```
+User types: /admin-panel directly
+```
+**Defense:** AuthGuard with first login checking
+
+### **Attack Vector 3: Back Button Bypass**
+```
+User: Completes login → Presses back → Navigates elsewhere
+```
+**Defense:** Replace navigation + history management
+
+### **Attack Vector 4: Multiple Tab Exploitation**
+```
+Tab 1: Complete login flow
+Tab 2: Direct navigation to protected pages
+```
+**Defense:** Session validation hook + real-time state sync
+
+### **Attack Vector 5: Cache Manipulation**
+```
+User: Clear cache → Reload → Try to access cached URLs
+```
+**Defense:** Redux persistence validation + token expiry checks
+
+---
+
+## 📋 **Security Implementation Checklist**
+
+### **Frontend Security:**
+- [ ] ✅ AuthGuard validates first login on every route
+- [ ] ✅ URL parameters validated against backend state
+- [ ] ✅ Navigation uses `replace: true` for security flows
+- [ ] ✅ Back button behavior handled appropriately
+- [ ] ✅ Redux persistence includes state validation
+- [ ] ✅ Session monitoring detects state inconsistencies
+- [ ] ✅ Token expiry automatically clears invalid sessions
+
+### **User Experience:**
+- [ ] ✅ Clear error messages for bypass attempts
+- [ ] ✅ Smooth redirects without jarring page jumps
+- [ ] ✅ Loading states during validation
+- [ ] ✅ Graceful degradation for edge cases
+
+### **Testing Scenarios:**
+- [ ] ✅ Test all browser navigation edge cases
+- [ ] ✅ Verify URL manipulation protection
+- [ ] ✅ Check multiple tab behavior
+- [ ] ✅ Validate cache clearing scenarios
+- [ ] ✅ Test session timeout handling
+
+---
+
+## 🎓 **Advanced Learning: Security Mindset**
+
+### **Questions Every Senior Developer Asks:**
+1. **"What if the user...?"** - Always think like an attacker
+2. **"Can this be bypassed?"** - Test every security assumption
+3. **"What's the worst that could happen?"** - Plan for worst-case scenarios
+4. **"How do we fail gracefully?"** - Ensure security even when things break
+5. **"Can we validate this server-side too?"** - Never trust client-only validation
+
+### **The Security Pyramid:**
+```
+       Frontend Validation
+      (User Experience Layer)
+    ↗                      ↖
+Backend Validation    Network Security
+(Source of Truth)     (Transport Layer)
+```
+
+**Remember:** Frontend security is about **User Experience**, not **System Security**. The real security happens on the backend!
+
+---
+
 ## 📋 **Implementation Checklist**
 
 ### **Backend Integration:**
