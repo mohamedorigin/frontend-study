@@ -1311,9 +1311,13 @@ const shouldUseModal = (formData) => {
 
 ## 🛡️ **Handling Browser Navigation Edge Cases: A Senior-Level Security Analysis**
 
+### **📍 Important Note: This Section Covers Page Navigation Approach**
+
+The following edge case handling is specifically designed for the **Page Navigation Approach** where users are redirected to `/reset-password` page. Modal approach has different edge cases which we'll cover separately.
+
 ### **🚨 The Problem Junior Developers Often Miss**
 
-Redux state persistence is great, but what happens when users try to bypass our secure flow through browser navigation? Let's explore every possible scenario and build bulletproof protection.
+Redux state persistence is great, but what happens when users try to bypass our secure flow through browser navigation? Let's explore every possible scenario and build bulletproof protection for the page navigation approach.
 
 ### **Edge Case Scenarios:**
 
@@ -1867,6 +1871,422 @@ User: Clear cache → Reload → Try to access cached URLs
 Backend Validation    Network Security
 (Source of Truth)     (Transport Layer)
 ```
+
+**Remember:** Frontend security is about **User Experience**, not **System Security**. The real security happens on the backend!
+
+---
+
+## 🪟 **Modal Approach: Edge Case Handling**
+
+### **📍 Modal-Specific Edge Cases**
+
+The modal approach has different security challenges compared to page navigation. Here's how to handle them:
+
+### **Modal Edge Case Scenarios:**
+
+```
+Modal-Specific Edge Cases:
+1. 🔄 Page Refresh → Modal disappears, user bypasses flow
+2. ❌ Modal Close → User dismisses modal and continues
+3. 🗂️ Multiple Tabs → User opens new tab while modal is open
+4. 🔗 Direct Navigation → User navigates away while modal is open
+5. ⌨️ Keyboard Shortcuts → User uses Ctrl+W, Alt+F4, etc.
+6. 🖱️ Browser Controls → User uses browser back/forward buttons
+7. 📱 Mobile Gestures → User swipes or uses mobile navigation
+```
+
+---
+
+## 🛠️ **Modal Solution 1: Persistent Modal State**
+
+### **Enhanced Modal with Persistence:**
+
+```javascript
+// src/components/ResetPasswordModal.js (Enhanced)
+import React, { useEffect, useCallback } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { logOut } from "redux/slices/authSlice";
+
+const ResetPasswordModal = ({ 
+  open, 
+  userData, 
+  onSuccess, 
+  onCancel,
+  disableClose = true 
+}) => {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const isFirstLogin = useSelector((state) => state?.auth?.isFirstLogin);
+
+  // 🔒 Prevent modal dismissal for first login
+  const handleModalClose = useCallback((event, reason) => {
+    if (disableClose && isFirstLogin) {
+      // Prevent all close attempts for first login
+      if (reason === 'backdropClick' || reason === 'escapeKeyDown') {
+        event.preventDefault();
+        return;
+      }
+    }
+    onCancel();
+  }, [disableClose, isFirstLogin, onCancel]);
+
+  // 🚫 Prevent navigation while modal is open
+  useEffect(() => {
+    if (!open || !isFirstLogin) return;
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = 'You must complete password reset before leaving';
+      return 'You must complete password reset before leaving';
+    };
+
+    const handlePopState = (event) => {
+      // User pressed back/forward buttons
+      event.preventDefault();
+      
+      // Show warning and prevent navigation
+      const confirmLeave = window.confirm(
+        "You must complete your password reset. Are you sure you want to leave?"
+      );
+      
+      if (confirmLeave) {
+        // User really wants to leave - log them out for security
+        dispatch(logOut());
+        navigate('/', { replace: true });
+      } else {
+        // Stay on current page
+        window.history.pushState(null, "", window.location.href);
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+    
+    // Prevent back button by pushing current state
+    window.history.pushState(null, "", window.location.href);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [open, isFirstLogin, dispatch, navigate]);
+
+  // 🔄 Handle page refresh detection
+  useEffect(() => {
+    if (isFirstLogin && !open) {
+      // Modal should be open but isn't - likely page refresh
+      console.log("First login modal should be open - reopening after refresh");
+      // Re-trigger modal opening logic in parent component
+    }
+  }, [isFirstLogin, open]);
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleModalClose}
+      fullWidth
+      maxWidth="sm"
+      disableEscapeKeyDown={disableClose && isFirstLogin}
+      // 🔒 Prevent all dismissal methods for first login
+      PaperProps={{
+        onClick: (e) => e.stopPropagation(),
+      }}
+      BackdropProps={{
+        onClick: disableClose && isFirstLogin 
+          ? (e) => e.preventDefault() 
+          : onCancel,
+      }}
+      // 🚫 Additional modal props for security
+      hideBackdrop={false}
+      disablePortal={false}
+      keepMounted={true} // Keep in DOM for state preservation
+    >
+      {/* Modal content remains the same */}
+    </Dialog>
+  );
+};
+```
+
+---
+
+## 🛠️ **Modal Solution 2: Login Component State Management**
+
+### **Enhanced Login with Modal Persistence:**
+
+```javascript
+// src/pages/login/Login.js (Enhanced Modal Approach)
+const Login = React.memo(() => {
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [loginUserData, setLoginUserData] = useState(null);
+  const isFirstLogin = useSelector((state) => state?.auth?.isFirstLogin);
+  
+  // 🔄 Handle page refresh - restore modal if needed
+  useEffect(() => {
+    if (isFirstLogin && !showResetPasswordModal) {
+      // Page was refreshed during first login flow
+      const userData = JSON.parse(localStorage.getItem('tempUserData') || '{}');
+      if (userData.id_user) {
+        setLoginUserData(userData);
+        setShowResetPasswordModal(true);
+      }
+    }
+  }, [isFirstLogin, showResetPasswordModal]);
+
+  const handleLogin = useCallback(
+    async (username, password) => {
+      try {
+        const result = await GlobalService.login(username, password);
+        
+        setLoginUserData(result.user);
+        
+        // 💾 Store temporary user data for refresh scenarios
+        localStorage.setItem('tempUserData', JSON.stringify(result.user));
+        
+        dispatch(updateUserData({
+          isLoggedIn: true,
+          token: result?.tokens.access,
+          tokenExpiry: result?.tokens.access_expires_in,
+          refreshToken: result?.tokens.refresh,
+          refreshTokenExpiry: result?.tokens.refresh_expires_in,
+          user: result.user,
+          isFirstLogin: result.user.first_login === true,
+        }));
+
+        displayNotification({
+          content: t("Welcome Back"),
+          severity: "success",
+        });
+
+        if (result.user.first_login === true) {
+          setShowResetPasswordModal(true);
+        } else {
+          navigate("/home");
+        }
+      } catch (err) {
+        setError(err.message || t("Login failed"));
+      }
+    },
+    [dispatch, displayNotification, navigate, t]
+  );
+
+  const handlePasswordResetSuccess = useCallback(() => {
+    // Clean up temporary data
+    localStorage.removeItem('tempUserData');
+    setShowResetPasswordModal(false);
+    navigate("/home");
+  }, [navigate]);
+
+  const handlePasswordResetCancel = useCallback(() => {
+    if (isFirstLogin) {
+      // For first login, canceling means logout
+      dispatch(logOut());
+      localStorage.removeItem('tempUserData');
+      setShowResetPasswordModal(false);
+      setError(t("Password reset is required for first login"));
+    } else {
+      setShowResetPasswordModal(false);
+    }
+  }, [isFirstLogin, dispatch, t]);
+
+  // ... rest of component
+});
+```
+
+---
+
+## 🛠️ **Modal Solution 3: Multiple Tab Detection**
+
+### **Cross-Tab Communication:**
+
+```javascript
+// src/hooks/useTabCommunication.js
+import { useEffect, useCallback } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { logOut } from 'redux/slices/authSlice';
+
+const useTabCommunication = () => {
+  const dispatch = useDispatch();
+  const isFirstLogin = useSelector((state) => state?.auth?.isFirstLogin);
+
+  const handleTabCommunication = useCallback((event) => {
+    if (event.key === 'firstLoginModalOpen') {
+      if (event.newValue === 'true' && isFirstLogin) {
+        // Another tab opened the modal, close this one's modal
+        console.log("First login modal opened in another tab");
+        
+        // Show warning in this tab
+        alert("Password reset is being completed in another tab. This tab will be logged out for security.");
+        
+        // Log out this tab
+        dispatch(logOut());
+        window.location.href = '/';
+      }
+    }
+    
+    if (event.key === 'firstLoginCompleted') {
+      if (event.newValue === 'true') {
+        // Password reset completed in another tab
+        console.log("Password reset completed in another tab");
+        window.location.reload(); // Refresh to get updated state
+      }
+    }
+  }, [isFirstLogin, dispatch]);
+
+  useEffect(() => {
+    window.addEventListener('storage', handleTabCommunication);
+    return () => window.removeEventListener('storage', handleTabCommunication);
+  }, [handleTabCommunication]);
+
+  const notifyModalOpen = useCallback(() => {
+    localStorage.setItem('firstLoginModalOpen', 'true');
+  }, []);
+
+  const notifyModalClose = useCallback(() => {
+    localStorage.removeItem('firstLoginModalOpen');
+  }, []);
+
+  const notifyFirstLoginCompleted = useCallback(() => {
+    localStorage.setItem('firstLoginCompleted', 'true');
+    setTimeout(() => {
+      localStorage.removeItem('firstLoginCompleted');
+    }, 1000); // Clear after 1 second
+  }, []);
+
+  return {
+    notifyModalOpen,
+    notifyModalClose,
+    notifyFirstLoginCompleted
+  };
+};
+
+export default useTabCommunication;
+```
+
+---
+
+## 📊 **Modal vs Page Navigation: Edge Case Comparison**
+
+| Edge Case | Modal Approach | Page Navigation Approach |
+|-----------|----------------|--------------------------|
+| **Page Refresh** | ❌ Modal disappears | ✅ Page persists with URL params |
+| **Back Button** | ❌ Complex to handle | ✅ Natural browser behavior |
+| **Direct URL Access** | ❌ Modal not shown | ✅ URL params restore state |
+| **Multiple Tabs** | ❌ Complex cross-tab sync | ✅ Each tab handles independently |
+| **Browser Close** | ❌ Hard to prevent | ❌ Both approaches struggle |
+| **Mobile Gestures** | ❌ Hard to control | ✅ Standard page behavior |
+| **Keyboard Shortcuts** | ❌ Many shortcuts to handle | ✅ Fewer edge cases |
+
+### **Modal Approach Complexity Score: 🔴 High**
+- Requires multiple event listeners
+- Complex state synchronization
+- Cross-tab communication needed
+- Many browser behaviors to override
+
+### **Page Navigation Complexity Score: 🟢 Low**
+- Leverages native browser behavior
+- URL-based state restoration
+- Standard routing patterns
+- Fewer edge cases to handle
+
+---
+
+## 🎯 **Modal Security Implementation Strategy**
+
+### **If You Choose Modal Approach, Implement ALL of These:**
+
+```javascript
+// Complete modal security checklist
+const modalSecurityFeatures = {
+  // 1. Prevent modal dismissal
+  disableEscapeKeyDown: true,
+  disableBackdropClick: true,
+  
+  // 2. Handle page refresh
+  useLocalStorageBackup: true,
+  restoreModalOnRefresh: true,
+  
+  // 3. Prevent navigation
+  blockBrowserBack: true,
+  blockBeforeUnload: true,
+  
+  // 4. Cross-tab communication
+  detectMultipleTabs: true,
+  syncAcrossTabs: true,
+  
+  // 5. Mobile considerations
+  preventMobileGestures: true,
+  handleOrientationChange: true,
+  
+  // 6. Fallback mechanisms
+  timeoutLogout: true, // If stuck too long
+  serverValidation: true, // Verify on backend
+};
+```
+
+### **Modal Approach: When the Complexity is Worth It**
+
+✅ **Use Modal When:**
+- Form is very simple (2-3 fields max)
+- Desktop-only application
+- You have resources for complex edge case handling
+- Immediate user attention is critical
+
+❌ **Avoid Modal When:**
+- Mobile-first application
+- Complex form with validation
+- Limited development time
+- Accessibility is a priority
+
+---
+
+## 🔄 **Modal Edge Case Flow Diagram**
+
+```mermaid
+graph TD
+    A["🔑 User Logs In"] --> B{"🤔 First Login?"}
+    
+    B -->|"✅ Yes"| C["🪟 Show Reset Password Modal"]
+    B -->|"❌ No"| D["🏠 Navigate to /home"]
+    
+    C --> E{"👤 User Action"}
+    
+    E -->|"✅ Completes Reset"| F["🎯 Close Modal & Navigate"]
+    E -->|"🔄 Refreshes Page"| G["💾 Modal Disappears"]
+    E -->|"❌ Tries to Close"| H["🚫 Prevent Close"]
+    E -->|"⬅️ Presses Back"| I["🚫 Show Warning"]
+    E -->|"🗂️ Opens New Tab"| J["📡 Cross-tab Detection"]
+    E -->|"📱 Mobile Gesture"| K["🚫 Prevent Navigation"]
+    
+    G --> L["🔍 Check localStorage"]
+    L --> M{"💾 Temp Data Exists?"}
+    M -->|"✅ Yes"| N["🔄 Restore Modal"]
+    M -->|"❌ No"| O["🚫 Logout User"]
+    
+    H --> C
+    I --> P{"⚠️ User Confirms Leave?"}
+    P -->|"✅ Yes"| Q["🚫 Logout for Security"]
+    P -->|"❌ No"| C
+    
+    J --> R["🚫 Close Other Tabs"]
+    K --> C
+    N --> C
+    
+    F --> S["🏠 Navigate to /home"]
+    O --> T["🔑 Return to Login"]
+    Q --> T
+    R --> C
+    
+    style C fill:#ff9800
+    style G fill:#f44336
+    style H fill:#f44336
+    style I fill:#f44336
+    style J fill:#9c27b0
+    style K fill:#f44336
+```
+
+---
 
 **Remember:** Frontend security is about **User Experience**, not **System Security**. The real security happens on the backend!
 
