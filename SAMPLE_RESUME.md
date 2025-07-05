@@ -34,7 +34,7 @@ High-achieving **Full-Stack ML Engineer** with **3 years of experience** demonst
 ### **Backend Development**
 - **Frameworks:** Django 5.x, Django REST Framework, FastAPI, Flask
 - **Databases:** MySQL, PostgreSQL, MongoDB, Redis, Elasticsearch
-- **Architecture:** Microservices, RESTful APIs, GraphQL, event-driven systems
+- **Architecture:** Microservices, RESTful APIs, event-driven systems
 - **Cloud Platforms:** AWS (SageMaker, Lambda, EC2, S3)
 - **Message Queues:** Celery, RabbitMQ, Apache Kafka
 - **Real-time:** WebSockets, Django Channels, Socket.io
@@ -67,20 +67,19 @@ High-achieving **Full-Stack ML Engineer** with **3 years of experience** demonst
 
 **Site Manager - Enterprise Pharmaceutical Manufacturing System**
 
-Designed and developed a comprehensive Level 3 pharmaceutical site management system with advanced ML capabilities, serving as the bridge between enterprise systems and shop-floor manufacturing equipment. **Achieved senior-level impact in under 3 years of professional experience.**
+**Key ML contributor** in designing and developing a comprehensive Level 3 pharmaceutical site management system with advanced ML capabilities, serving as the bridge between enterprise systems and shop-floor manufacturing equipment. **Served as the sole ML expert** on a collaborative development team, leading all machine learning architecture and implementation decisions. **Achieved senior-level impact in 3 years of professional experience.**
 
 **Key Achievements:**
-- **ML-Driven Predictive Maintenance:** Designed and implemented predictive maintenance engine using LSTM and ensemble methods, achieving 30-50% reduction in unplanned downtime
-- **Quality Prediction System:** Developed real-time quality prediction models using deep learning, improving first-pass yield by 15-20%
-- **Anomaly Detection:** Built sophisticated anomaly detection system for serialization integrity monitoring using Isolation Forest and autoencoders
-- **Enterprise Integration:** Successfully integrated with SAP ERP systems, achieving seamless data flow between enterprise and shop-floor operations
+- **ML-Driven Predictive Maintenance:** Independently designed and implemented predictive maintenance engine using LSTM and ensemble methods, achieving 30-50% reduction in unplanned downtime
+- **Quality Prediction System:** Led development of real-time quality prediction models using deep learning, improving first-pass yield by 15-20%
+- **Anomaly Detection:** Architected and built sophisticated anomaly detection system for serialization integrity monitoring using Isolation Forest and autoencoders
+- **ML-Enterprise Integration:** Collaborated with team to integrate ML capabilities with SAP ERP systems, leading the ML component design for seamless data flow between enterprise and shop-floor operations
 
 **Technical Implementation:**
-- Built scalable Django backend with MySQL optimization, supporting multi-site deployments
-- Developed responsive React frontend with Material-UI, supporting real-time manufacturing operations
-- Implemented comprehensive ML pipeline with automated model training, validation, and deployment
-- Created real-time machine integration system supporting multiple communication protocols
-- Designed hierarchical data models for complex serialization and aggregation management
+- **ML Leadership:** Architected and implemented comprehensive ML pipeline with automated model training, validation, and deployment - serving as the sole ML expert on the development team
+- **Full-Stack Contribution:** Contributed to scalable Django backend development with MySQL optimization and responsive React frontend with real-time manufacturing operations
+- **ML Integration:** Designed and developed ML-powered features including predictive maintenance, quality prediction, and anomaly detection systems
+- **Team Collaboration:** Worked with development team on real-time machine integration system and hierarchical data models while leading all ML-related architecture decisions
 
 **Technologies Used:** React, Django, MySQL, TensorFlow, scikit-learn, Redis, Celery, Docker, Material-UI, Redux
 
@@ -148,7 +147,7 @@ Developed and maintained integration platform connecting manufacturing equipment
 
 ## 🏆 **Key Accomplishments**
 
-- **Rapid Impact:** Achieved enterprise-level results in **under 3 years**, demonstrating exceptional learning velocity and technical capability
+- **Rapid Impact:** Achieved enterprise-level ML results in **3 years** as sole ML expert on collaborative teams, demonstrating exceptional learning velocity and technical capability
 - **Performance Optimization:** Achieved 40% improvement in overall equipment effectiveness (OEE) through ML-driven optimization
 - **Cost Reduction:** Delivered 25% reduction in operational costs through predictive analytics implementation
 - **Quality Enhancement:** Implemented quality prediction system resulting in 15-20% improvement in first-pass yield
@@ -182,11 +181,12 @@ Developed and maintained integration platform connecting manufacturing equipment
 
 ## 💡 **Innovation & Leadership**
 
+- **ML Domain Leadership:** Served as sole ML expert on collaborative development teams, leading all machine learning architecture and implementation decisions
 - **Rapid Technical Growth:** Achieved senior-level technical impact within first 3 years of professional experience
 - **Innovation:** Pioneered ML-driven predictive maintenance and computer vision quality control in pharmaceutical manufacturing
-- **Problem Solving:** Independently architected and implemented complex enterprise-grade solutions
-- **Technology Integration:** Successfully bridged theoretical ML knowledge with practical industrial applications
-- **Continuous Learning:** Demonstrated exceptional ability to rapidly master new technologies and domain expertise
+- **Cross-Functional Collaboration:** Successfully integrated ML capabilities with traditional software development teams
+- **Technology Integration:** Bridged theoretical ML knowledge with practical industrial applications in collaborative environments
+- **Continuous Learning:** Demonstrated exceptional ability to rapidly master new technologies and domain expertise while mentoring team members on ML concepts
 
 ---
 
