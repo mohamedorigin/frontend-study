@@ -295,10 +295,10 @@ const useSessionManager = () => {
                        │
                  SessionWrapper (Enhanced)
                        │
-              useSessionManager() ←─────┐
-                       │               │
-                       ▼               │
-        ┌─── React State ────┐         │
+              useSessionManager() ←───┐
+                       │              │
+                       ▼              │
+        ┌─── React State ────┐        │
         │                   │         │
         │ • showWarning     │         │
         │ • timeRemaining   │         │
