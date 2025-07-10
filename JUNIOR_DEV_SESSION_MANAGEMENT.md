@@ -100,54 +100,61 @@ function trackActivity() {
 ### Concept 3: Event-Driven Architecture
 
 ```
-flowchart TD
-    A[🖱️ USER ACTIVITY] --> B[SessionManager.trackActivity]
-    
-    B --> C1[1. Update lastActivity timestamp]
-    B --> C2[2. Clear existing timers]
-    B --> C3[3. Start new timers]
-    B --> C4[4. Hide any warnings]
-    
-    C1 --> D[Timer Management]
-    C2 --> D
-    C3 --> D
-    C4 --> D
-    
-    D --> E1[Warning Timer<br/>25 min]
-    D --> E2[Logout Timer<br/>30 min]
-    
-    E1 --> F1[onWarningCallback]
-    E2 --> F2[onLogoutCallback]
-    
-    F1 --> G[React Hook<br/>useSessionManager]
-    F2 --> G
-    
-    G --> G1[• Receives callbacks]
-    G --> G2[• Updates React state]
-    G --> G3[• Triggers UI notifications]
-    G --> G4[• Manages Redux integration]
-    
-    G1 --> H[UI Layer]
-    G2 --> H
-    G3 --> H
-    
-    H --> H1[• Show warning dialog]
-    H --> H2[• Display notifications]
-    H --> H3[• Update session indicators]
-    
-    G4 --> I[Redux Store]
-    F2 --> I
-    
-    I --> I1[• Update auth state]
-    I --> I2[• Trigger logout action]
-    I --> I3[• Clear user data]
-    
-    style A fill:#e1f5fe
-    style B fill:#fff3e0
-    style D fill:#f3e5f5
-    style G fill:#e8f5e8
-    style H fill:#fff8e1
-    style I fill:#fce4ec 
+                    🖱️ USER ACTIVITY
+                         │
+                         ▼
+    ┌─────────────────────────────────────────┐
+    │        SessionManager.trackActivity()   │
+    │                                         │
+    │  1. Update lastActivity timestamp       │
+    │  2. Clear existing timers               │
+    │  3. Start new timers                    │
+    │  4. Hide any warnings                   │
+    └─────────────┬───────────────────────────┘
+                  │
+                  ▼
+    ┌──────────────────────────────────────┐
+    │           Timer Management           │
+    │                                      │
+    │  ┌─── Warning Timer (25 min) ───┐    │
+    │  │                              │    │
+    │  └──► onWarningCallback() ──────┼─┐  │
+    │                                 │ │  │
+    │  ┌─── Logout Timer (30 min) ────┐ │  │  │
+    │  │                              │ │  │  │
+    │  └──► onLogoutCallback() ───────┼─┼──┼──┐
+    └─────────────────────────────────┘ │  │  │
+                                        │  │  │
+            ┌───────────────────────────┘  │  │
+            │   ┌──────────────────────────┘  │
+            ▼   ▼                             │
+    ┌─────────────────────────────────────────┼──┐
+    │         React Hook (useSessionManager)  │  │
+    │                                         │  │
+    │  • Receives callbacks                   │  │
+    │  • Updates React state                  │  │
+    │  • Triggers UI notifications            │  │
+    │  • Manages Redux integration            │  │
+    └─────────────┬───────────────────────────┘  │
+                  │                              │
+                  ▼                              │
+    ┌─────────────────────────────────────────┐  │
+    │              UI Layer                   │  │
+    │                                         │  │
+    │  • Show warning dialog                  │  │
+    │  • Display notifications                │  │
+    │  • Update session indicators            │  │
+    └─────────────────────────────────────────┘  │
+                                                 │
+                  ┌──────────────────────────────┘
+                  ▼
+    ┌─────────────────────────────────────────┐
+    │           Redux Store                   │
+    │                                         │
+    │  • Update auth state                    │
+    │  • Trigger logout action                │
+    │  • Clear user data                      │
+    └─────────────────────────────────────────┘
 ```
 
 ---
@@ -157,41 +164,29 @@ flowchart TD
 ### Visual Timeline Understanding
 
 ```
-gantt
-    title Session Lifecycle Timeline (30-minute session)
-    dateFormat X
-    axisFormat %M min
-    
-    section Session Flow
-    Active Period           :active, 0, 20
-    Warning Period         :crit, 20, 25
-    Force Logout          :milestone, 25, 30
-    
-    section Events
-    Login                  :milestone, 0, 0
-    User Activity Resets   :milestone, 10, 10
-    Warning Triggered      :milestone, 20, 20
-    Session Expires        :milestone, 25, 25
+Timeline (30-minute session example):
+
+0 min     20 min    25 min    30 min
+  │         │         │         │
+  │◄──────Active──────►│         │
+  │                   │         │
+Login                Warning   Logout
+  │                    │         │
+  └─── User Activity ──┘         │
+       Resets Timer             │
+                                │
+                          Force Logout
 ```
 
 ### State Transition Diagram
 
 ```
-gantt
-    title Session Lifecycle Timeline (30-minute session)
-    dateFormat X
-    axisFormat %M min
-    
-    section Session Flow
-    Active Period           :active, 0, 20
-    Warning Period         :crit, 20, 25
-    Force Logout          :milestone, 25, 30
-    
-    section Events
-    Login                  :milestone, 0, 0
-    User Activity Resets   :milestone, 10, 10
-    Warning Triggered      :milestone, 20, 20
-    Session Expires        :milestone, 25, 25
+LOGGED_OUT → [Login] → ACTIVE → [No Activity] → WARNING → [Still No Activity] → LOGGED_OUT
+     ↑                   ↑                          ↓
+     │                   │                    [User Activity]
+     │                   └─────────────────────────┘
+     │
+     └─── [Timeout or Manual Logout] ────┘
 ```
 
 ### Timer States and Logic
@@ -295,10 +290,10 @@ const useSessionManager = () => {
                        │
                  SessionWrapper (Enhanced)
                        │
-              useSessionManager() ←───┐
-                       │              │
-                       ▼              │
-        ┌─── React State ────┐        │
+              useSessionManager() ←─────┐
+                       │               │
+                       ▼               │
+        ┌─── React State ────┐         │
         │                   │         │
         │ • showWarning     │         │
         │ • timeRemaining   │         │
